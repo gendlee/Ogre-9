@@ -1,0 +1,184 @@
+//Ogre基础教程9，从零开始创建自己的ogre场景，2015.10.7
+
+#include <Ogre.h>
+#include<OIS/OIS.h>
+#include<CEGUI/CEGUI.h>
+#include <OgreCEGUIRenderer.h>
+using namespace Ogre;
+
+//创建一个退出帧监听的类，公有继承帧监听类
+class ExitListener:public FrameListener
+{
+public:
+	ExitListener(OIS::Keyboard *keyboard)
+		:mKeyboard(keyboard)
+	{
+
+	}
+bool frameStarted(const FrameEvent &evt)
+{
+     mKeyboard->capture();
+	 return !mKeyboard->isKeyDown(OIS::KC_ESCAPE);
+}
+private:
+	OIS::Keyboard *mKeyboard;
+
+};
+//创建自己的应用类
+class Application
+{
+public:
+	void go()      //创建go函数
+	{
+		createRoot();
+		defineResources();
+		setupRenderSystem();
+		createRenderWindow();     //创建渲染窗口
+		initializeResourceGroups();
+
+		setupScene();
+		setupInputSystem();
+		setupCEGUI();
+		createFrameListener();
+		startRenderLoop();
+
+	}
+	~Application()
+	{
+		//清理OIS
+         mInputManager->destroyInputObject(mKeyboard);
+		 OIS::InputManager::destroyInputSystem(mInputManager);
+		 //清理CEGUI
+		 delete mRenderer;
+		 delete mSystem;
+
+		 delete mListener;
+		 delete mRoot;
+	}
+private:
+      Root *mRoot;
+	  OIS::Keyboard *mKeyboard;
+	  OIS::InputManager *mInputManager;
+	  CEGUI::OgreCEGUIRenderer *mRenderer;
+	  CEGUI::System *mSystem;
+	  ExitListener *mListener;
+
+	  void createRoot()
+	  {
+            mRoot = new Root();
+	  }
+	  void defineResources()
+	  {
+            String secName,typeName,archName;
+			ConfigFile cf;   //用Ogre中的类ConfigFile来解析cfg中所有资源
+			cf.load("resources.cfg");
+			//利用循环的方式添加各部分到ResourceGroupManager中
+			ConfigFile::SectionIterator seci = cf.getSectionIterator();
+			while(seci.hasMoreElements())
+			{
+				//循环方式提取里面所有内容
+				secName = seci.peekNextKey();
+				ConfigFile::SettingsMultiMap *settings = seci.getNext();
+				ConfigFile::SettingsMultiMap::iterator i;
+				//添加部件名称，资源类型等
+				for(i = settings->begin();i != settings->end();++i)
+				{
+					typeName = i->first;
+					archName = i->second;
+					ResourceGroupManager::getSingleton().addResourceLocation(archName,typeName,secName);
+				}
+
+			}
+
+	  }
+	  void setupRenderSystem()
+	  {
+		  if(!mRoot->restoreConfig()&&!mRoot->showConfigDialog())
+			  throw Exception(52,"User canceled the config dialog!","Application::setupRenderSystem()");
+
+	  }
+	  void createRenderWindow()
+	  {
+             mRoot->initialise(true,"Lizheng's Render Window");
+	  }
+	  void initializeResourceGroups()
+	  {
+		  TextureManager::getSingleton().setDefaultNumMipmaps(5);
+		  ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
+	  }
+	  void setupScene()
+	  {
+           SceneManager *mgr = mRoot->createSceneManager(ST_GENERIC,"Default SceneManager");
+		   Camera *cam = mgr->createCamera("Camera");
+		   Viewport *vp = mRoot->getAutoCreatedWindow()->addViewport(cam);
+		   //好了，下面尽量添加你想要的物体
+
+	  }
+	  //下面是设置第三方库
+	  void setupInputSystem()
+	  {
+           size_t windowHnd = 0;
+		   std::ostringstream windowHndStr;
+		   OIS::ParamList pl;
+		   RenderWindow *win = mRoot->getAutoCreatedWindow();
+		   win->getCustomAttribute("WINDOW",&windowHnd);
+		   windowHndStr<<windowHnd;
+		   pl.insert(std::make_pair(std::string("WINDOW"),windowHndStr.str()));
+		   mInputManager = OIS::InputManager::createInputSystem(pl);
+		   //为了用键盘或鼠标操作，还得
+		   try
+		   {
+			   //这里选用键盘输入模式，鼠标和摇杆输入类似的
+			   mKeyboard = static_cast<OIS::Keyboard*>(mInputManager->createInputObject(OIS::OISKeyboard,false));
+		   }
+		   catch (const OIS::Exception &e)
+		   {
+			   throw Exception(42,e.eText,"Application::setupInputSystem");
+		   }
+	  }
+	  void setupCEGUI()
+	  {
+
+	  }
+	  void createFrameListener()
+	  {
+          mListener = new ExitListener(mKeyboard);
+		  mRoot->addFrameListener(mListener);
+	  }
+	  //设置渲染循环
+	  void startRenderLoop()
+	  {
+           mRoot->startRendering();
+	  }
+
+
+};
+
+
+
+
+
+
+#if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
+#define WIN32_LEAN_AND_MEAN
+#include "windows.h"
+INT WINAPI WinMain( HINSTANCE hInst, HINSTANCE, LPSTR strCmdLine,
+				   INT )
+#else
+int main(int argc, char **argv)
+#endif
+{
+	// Create application object
+	Application app;
+	try {
+		app.go();
+	} catch( Exception& e ) {
+#if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
+		MessageBox( NULL, e.getFullDescription().c_str(), "An exception has occured!", MB_OK | MB_ICONERROR | MB_TASKMODAL);
+#else
+		fprintf(stderr, "An exception has occured: %s\n",
+			e.getFullDescription().c_str());
+#endif
+	}return 0;
+
+}
